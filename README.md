@@ -14,7 +14,7 @@ A modern web-based implementation of the classic Block Blast puzzle game. Place 
 
 ## 🚀 Play Now
 
-[Play Block Blast Classic](https://yourusername.github.io/block-blast-classic/)
+[Play Block Blast Classic](https://negriniainda.github.io/block-blast-classic/)
 
 ## 🎯 How to Play
 
