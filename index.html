@@ -672,7 +672,7 @@
                 this.nextPieceId = 0;
                 this.board = Array(8).fill().map(() => Array(8).fill(0));
                 this.score = 0;
-                this.highScore = localStorage.getItem('blocksHighScore') || 0;
+                this.highScore = Number(localStorage.getItem('blocksHighScore')) || 0;
                 this.currentPieces = [];
                 this.gameBoard = document.getElementById('game-board');
                 this.piecesTray = document.getElementById('pieces-tray');
@@ -752,9 +752,14 @@
             init() {
                 this.createBoard();
                 this.generatePieces();
-                this.updateScore();
+                this.updateScoreDisplay();
                 this.setupEventListeners();
                 this.checkFirstTimeVisit();
+            }
+            
+            updateScoreDisplay() {
+                this.scoreElement.textContent = this.score;
+                this.highScoreElement.textContent = this.highScore;
             }
             
             initializeSounds() {
@@ -884,8 +889,7 @@
                 this.isPaused = false;
                 
                 // Update UI
-                this.scoreElement.textContent = this.score;
-                this.highScoreElement.textContent = this.highScore;
+                this.updateScoreDisplay();
                 this.pauseBtn.textContent = 'Pause';
                 
                 // Recreate board and generate new pieces
@@ -1197,9 +1201,10 @@
                 const clientX = e.clientX || e.touches[0].clientX;
                 const clientY = e.clientY || e.touches[0].clientY;
                 
-                // Center the piece on the cursor
-                this.dragOffset.x = rect.width / 2;
-                this.dragOffset.y = rect.height / 2;
+                // Center the piece on the cursor using board cell size for better alignment
+                const cellSize = 42; // 40px + 2px gap
+                this.dragOffset.x = (this.draggedPiece.shape[0].length * cellSize) / 2;
+                this.dragOffset.y = (this.draggedPiece.shape.length * cellSize) / 2;
                 
                 pieceContainer.classList.add('dragging');
                 pieceContainer.style.left = (clientX - this.dragOffset.x) + 'px';
@@ -1254,6 +1259,18 @@
                     setTimeout(() => {
                         const clearedLines = this.checkForCompletedLines();
                         
+                        // Always award points for placing a piece
+                        if (clearedLines === 0) {
+                            this.score += 1; // Award 1 point for every piece placed
+                            if (this.score > this.highScore) {
+                                this.highScore = this.score;
+                                localStorage.setItem('blocksHighScore', this.highScore);
+                                this.updateScoreDisplay();
+                            } else {
+                                this.updateScoreDisplay();
+                            }
+                        }
+                        
                         // Update performance metrics
                         if (clearedLines > 0) {
                             this.recentClears += clearedLines;
@@ -1289,8 +1306,8 @@
                 const pieceWidth = this.draggedPiece.shape[0].length * 27; // 25px + 2px gap
                 const pieceHeight = this.draggedPiece.shape.length * 27;
                 
-                const adjustedX = clientX - (pieceWidth / 2);
-                const adjustedY = clientY - (pieceHeight / 2);
+                const adjustedX = clientX;
+                const adjustedY = clientY;
                 
                 const col = Math.floor((adjustedX - boardRect.left) / cellSize);
                 const row = Math.floor((adjustedY - boardRect.top) / cellSize);
@@ -1334,8 +1351,8 @@
                 const pieceWidth = this.draggedPiece.shape[0].length * 27; // 25px + 2px gap
                 const pieceHeight = this.draggedPiece.shape.length * 27;
                 
-                const adjustedX = clientX - (pieceWidth / 2);
-                const adjustedY = clientY - (pieceHeight / 2);
+                const adjustedX = clientX;
+                const adjustedY = clientY;
                 
                 const col = Math.floor((adjustedX - boardRect.left) / cellSize);
                 const row = Math.floor((adjustedY - boardRect.top) / cellSize);
@@ -1568,14 +1585,14 @@
                     }
                 }
                 
-                this.scoreElement.textContent = this.score;
+                this.updateScoreDisplay();
                 
                 // Check for new high score
                 if (this.score > this.highScore) {
                     const isNewRecord = !wasHighScore || previousScore < this.highScore;
                     this.highScore = this.score;
-                    this.highScoreElement.textContent = this.highScore;
                     localStorage.setItem('blocksHighScore', this.highScore);
+                    this.updateScoreDisplay();
                     
                     // Trigger high score celebration
                     if (isNewRecord) {
