@@ -89,12 +89,17 @@
         }
         
         #sound-btn {
-            background: #4ecdc4;
+            background: #2a9d8f; /* Darker green */
             min-width: 50px;
         }
         
         #sound-btn.muted {
             background: #95a5a6;
+        }
+
+        #reload-btn {
+            background: #3a86ff; /* Blue */
+            min-width: 50px;
         }
 
         .game-board-container {
@@ -191,6 +196,65 @@
             height: 25px;
             border-radius: 3px;
             border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        /* Instructions Modal */
+        .instructions-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        
+        .instructions-content {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        .instructions-content h2 {
+            color: #4ecdc4;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        
+        .instructions-content p {
+            margin-bottom: 15px;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+        
+        .instructions-content .highlight {
+            color: #feca57;
+            font-weight: bold;
+        }
+        
+        .got-it-btn {
+            background: linear-gradient(45deg, #4ecdc4, #45b7d1);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+            transition: transform 0.2s ease;
+        }
+        
+        .got-it-btn:hover {
+            transform: scale(1.05);
         }
         
         .piece-block-empty {
@@ -577,7 +641,7 @@
             <div class="button-group">
                 <button class="pause-btn" id="pause-btn">Pause</button>
                 <button class="pause-btn" id="sound-btn">🔊</button>
-                <button class="pause-btn" id="restart-btn">🔄</button>
+                <button class="pause-btn" id="reload-btn">🔄</button>
             </div>
         </div>
         
@@ -586,6 +650,20 @@
         </div>
         
         <div class="pieces-tray" id="pieces-tray"></div>
+    </div>
+
+    <!-- Instructions Modal -->
+    <div class="instructions-modal" id="instructions-modal" style="display: none;">
+        <div class="instructions-content">
+            <h2>🎮 Welcome to Blocks Classic!</h2>
+            <p>🎯 <span class="highlight">Goal:</span> Place pieces on the 8x8 grid to clear lines and score points!</p>
+            <p>🖱️ <span class="highlight">How to Play:</span> Drag pieces from the tray below and drop them on the board</p>
+            <p>✨ <span class="highlight">Scoring:</span> Clear horizontal or vertical lines to earn points</p>
+            <p>🔥 <span class="highlight">Combo Bonus:</span> Clear multiple lines at once for extra points!</p>
+            <p>🎵 <span class="highlight">Controls:</span> Use the sound and restart buttons in the top-right corner</p>
+            <p>💡 <span class="highlight">Strategy:</span> Plan ahead - the game ends when no pieces can be placed!</p>
+            <button class="got-it-btn" onclick="game.closeInstructions()">Got it! Let's Play! 🚀</button>
+        </div>
     </div>
 
     <script>
@@ -602,7 +680,7 @@
                 this.highScoreElement = document.getElementById('high-score');
                 this.pauseBtn = document.getElementById('pause-btn');
                 this.soundBtn = document.getElementById('sound-btn');
-                this.restartBtn = document.getElementById('restart-btn');
+                this.restartBtn = document.getElementById('reload-btn');
                 this.isPaused = false;
                 this.draggedPiece = null;
                 this.dragOffset = { x: 0, y: 0 };
@@ -676,6 +754,7 @@
                 this.generatePieces();
                 this.updateScore();
                 this.setupEventListeners();
+                this.checkFirstTimeVisit();
             }
             
             initializeSounds() {
@@ -696,6 +775,28 @@
                     this.soundBtn.textContent = this.soundEnabled ? '🔊' : '🔇';
                     this.soundBtn.classList.toggle('muted', !this.soundEnabled);
                 }
+            }
+            
+            checkFirstTimeVisit() {
+                // Check if this is the first time the user is playing
+                const hasPlayedBefore = localStorage.getItem('blocksClassicPlayed');
+                if (!hasPlayedBefore) {
+                    // Show instructions modal
+                    const modal = document.getElementById('instructions-modal');
+                    if (modal) {
+                        modal.style.display = 'flex';
+                    }
+                }
+            }
+            
+            closeInstructions() {
+                // Hide the instructions modal
+                const modal = document.getElementById('instructions-modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+                // Mark that the user has now played the game
+                localStorage.setItem('blocksClassicPlayed', 'true');
             }
             
             createTone(frequency, duration, type = 'sine', volume = 0.3) {
@@ -784,6 +885,7 @@
                 
                 // Update UI
                 this.scoreElement.textContent = this.score;
+                this.highScoreElement.textContent = this.highScore;
                 this.pauseBtn.textContent = 'Pause';
                 
                 // Recreate board and generate new pieces
@@ -1843,8 +1945,9 @@
         }
         
         // Initialize the game when the page loads
+        let game;
         document.addEventListener('DOMContentLoaded', () => {
-            new BlocksClassic();
+            game = new BlocksClassic();
         });
     </script>
 </body>
