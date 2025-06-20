@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Blocks Classic</title>
     <style>
         * {
@@ -18,6 +18,12 @@
             color: white;
             overflow: hidden;
             user-select: none;
+            /* Truly dynamic viewport - no fixed heights */
+            height: 100vh;
+            height: 100dvh; /* Dynamic viewport height */
+            height: -webkit-fill-available;
+            margin: 0;
+            padding: 0;
         }
 
         /* Hide audio elements */
@@ -28,8 +34,18 @@
         .game-container {
             display: flex;
             flex-direction: column;
+            /* Use full available height */
             height: 100vh;
+            height: 100dvh;
+            height: -webkit-fill-available;
+            width: 100%;
             padding: 10px;
+            box-sizing: border-box;
+            /* Safe area insets for mobile devices */
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+            padding-top: max(10px, env(safe-area-inset-top));
+            padding-left: max(10px, env(safe-area-inset-left));
+            padding-right: max(10px, env(safe-area-inset-right));
         }
 
         .header {
@@ -81,6 +97,9 @@
             justify-content: center;
             flex: 1;
             align-items: center;
+            /* Center the game board in available space */
+            min-height: 0;
+            overflow: hidden;
         }
 
         .game-board {
@@ -421,6 +440,124 @@
 
         .restart-btn:hover {
             background: #45b7aa;
+        }
+
+        /* Mobile-specific styles */
+         @media screen and (max-width: 768px) {
+              .game-container {
+                  padding: 5px;
+                  padding-bottom: max(5px, env(safe-area-inset-bottom));
+                  /* Fully responsive height */
+                  height: 100vh;
+                  height: 100dvh;
+                  height: -webkit-fill-available;
+              }
+            
+            .header {
+                  padding: 8px 15px;
+                  margin-bottom: 10px;
+              }
+            
+            .score-display {
+                font-size: 20px;
+            }
+            
+            .high-score {
+                font-size: 14px;
+            }
+            
+            .pause-btn {
+                padding: 8px 15px;
+                font-size: 14px;
+            }
+            
+            .game-board {
+                grid-template-columns: repeat(8, 35px);
+                grid-template-rows: repeat(8, 35px);
+                gap: 1px;
+                padding: 8px;
+            }
+            
+            .cell {
+                width: 35px;
+                height: 35px;
+            }
+            
+            .pieces-tray {
+                  padding: 15px 10px;
+                  margin-top: 10px;
+                  gap: 20px;
+                  /* Ensure tray stays above mobile toolbar */
+                  margin-bottom: env(safe-area-inset-bottom, 0px);
+              }
+            
+            .piece-block {
+                width: 22px;
+                height: 22px;
+            }
+            
+            .piece-block-empty {
+                width: 22px;
+                height: 22px;
+            }
+        }
+        
+        /* Extra small mobile devices */
+         @media screen and (max-height: 600px) {
+              .game-container {
+                  padding: 3px;
+                  /* Fully adaptive height for small screens */
+                  height: 100vh;
+                  height: 100dvh;
+                  height: -webkit-fill-available;
+              }
+            
+            .header {
+                  padding: 5px 10px;
+                  margin-bottom: 8px;
+              }
+            
+            .score-display {
+                font-size: 18px;
+            }
+            
+            .high-score {
+                font-size: 12px;
+            }
+            
+            .pause-btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+            
+            .game-board {
+                grid-template-columns: repeat(8, 30px);
+                grid-template-rows: repeat(8, 30px);
+                padding: 5px;
+            }
+            
+            .cell {
+                width: 30px;
+                height: 30px;
+            }
+            
+            .pieces-tray {
+                   padding: 10px 5px;
+                   margin-top: 8px;
+                   gap: 15px;
+                   /* Flexible sizing for very small screens */
+                   flex-shrink: 0;
+               }
+            
+            .piece-block {
+                width: 20px;
+                height: 20px;
+            }
+            
+            .piece-block-empty {
+                width: 20px;
+                height: 20px;
+            }
         }
     </style>
 </head>
