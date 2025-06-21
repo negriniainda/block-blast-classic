@@ -159,6 +159,24 @@
             border-color: #ff0000;
         }
 
+        .cell.magnetic-snap {
+            background: rgba(0, 255, 255, 0.4);
+            border-color: #00ffff;
+            animation: magneticPulse 0.8s ease-in-out infinite alternate;
+            box-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
+        }
+
+        @keyframes magneticPulse {
+            0% {
+                background: rgba(0, 255, 255, 0.3);
+                box-shadow: 0 0 5px rgba(0, 255, 255, 0.4);
+            }
+            100% {
+                background: rgba(0, 255, 255, 0.5);
+                box-shadow: 0 0 12px rgba(0, 255, 255, 0.8);
+            }
+        }
+
         .pieces-tray {
             display: flex;
             justify-content: center;
@@ -1432,9 +1450,57 @@
                 const col = Math.floor((adjustedX - boardRect.left) / cellSize);
                 const row = Math.floor((adjustedY - boardRect.top) / cellSize);
                 
+                // Check if we're dragging outside the board boundaries
+                const isOutsideBoard = row < 0 || row >= 8 || col < 0 || col >= 8;
+                
+                // First try exact position
                 if (this.canPlacePiece(this.draggedPiece.shape, row, col)) {
                     this.highlightCells(this.draggedPiece.shape, row, col, 'valid-drop');
+                    return;
+                }
+                
+                // If dragging outside board or piece would go outside, show red immediately
+                if (isOutsideBoard || !this.isPieceWithinBounds(this.draggedPiece.shape, row, col)) {
+                    // Clamp position to board for visual feedback
+                    const clampedRow = Math.max(0, Math.min(7, row));
+                    const clampedCol = Math.max(0, Math.min(7, col));
+                    this.highlightCells(this.draggedPiece.shape, clampedRow, clampedCol, 'invalid-drop');
+                    return;
+                }
+                
+                // Check if piece overlaps with existing blocks (show red even if magnetic snap could work)
+                if (this.isPieceWithinBounds(this.draggedPiece.shape, row, col) && this.hasOverlap(this.draggedPiece.shape, row, col)) {
+                    this.highlightCells(this.draggedPiece.shape, row, col, 'invalid-drop');
+                    return;
+                }
+                
+                // Magnetic snap: search for nearest valid position for visual feedback
+                const snapRadius = 2; // Search within 2 cells in each direction
+                let bestPosition = null;
+                let minDistance = Infinity;
+                
+                for (let deltaRow = -snapRadius; deltaRow <= snapRadius; deltaRow++) {
+                    for (let deltaCol = -snapRadius; deltaCol <= snapRadius; deltaCol++) {
+                        const testRow = row + deltaRow;
+                        const testCol = col + deltaCol;
+                        
+                        if (this.canPlacePiece(this.draggedPiece.shape, testRow, testCol)) {
+                            // Calculate distance from original position
+                            const distance = Math.sqrt(deltaRow * deltaRow + deltaCol * deltaCol);
+                            
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                bestPosition = { row: testRow, col: testCol };
+                            }
+                        }
+                    }
+                }
+                
+                if (bestPosition) {
+                    // Show where the piece will snap to with a special highlight
+                    this.highlightCells(this.draggedPiece.shape, bestPosition.row, bestPosition.col, 'valid-drop magnetic-snap');
                 } else {
+                    // No valid position found, show invalid drop
                     this.highlightCells(this.draggedPiece.shape, row, col, 'invalid-drop');
                 }
             }
@@ -1459,7 +1525,7 @@
             
             clearHighlights() {
                 document.querySelectorAll('.cell').forEach(cell => {
-                    cell.classList.remove('valid-drop', 'invalid-drop');
+                    cell.classList.remove('valid-drop', 'invalid-drop', 'magnetic-snap');
                 });
             }
             
@@ -1479,8 +1545,35 @@
                 const col = Math.floor((adjustedX - boardRect.left) / cellSize);
                 const row = Math.floor((adjustedY - boardRect.top) / cellSize);
                 
+                // First try exact position
                 if (this.canPlacePiece(this.draggedPiece.shape, row, col)) {
                     return { success: true, row, col };
+                }
+                
+                // Magnetic snap: search for nearest valid position within snap radius
+                const snapRadius = 2; // Search within 2 cells in each direction
+                let bestPosition = null;
+                let minDistance = Infinity;
+                
+                for (let deltaRow = -snapRadius; deltaRow <= snapRadius; deltaRow++) {
+                    for (let deltaCol = -snapRadius; deltaCol <= snapRadius; deltaCol++) {
+                        const testRow = row + deltaRow;
+                        const testCol = col + deltaCol;
+                        
+                        if (this.canPlacePiece(this.draggedPiece.shape, testRow, testCol)) {
+                            // Calculate distance from original position
+                            const distance = Math.sqrt(deltaRow * deltaRow + deltaCol * deltaCol);
+                            
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                bestPosition = { row: testRow, col: testCol };
+                            }
+                        }
+                    }
+                }
+                
+                if (bestPosition) {
+                    return { success: true, row: bestPosition.row, col: bestPosition.col };
                 }
                 
                 return { success: false };
@@ -1504,6 +1597,41 @@
                     }
                 }
                 return true;
+            }
+            
+            isPieceWithinBounds(shape, startRow, startCol) {
+                for (let rowIndex = 0; rowIndex < shape.length; rowIndex++) {
+                    for (let colIndex = 0; colIndex < shape[rowIndex].length; colIndex++) {
+                        if (shape[rowIndex][colIndex] === 1) {
+                            const boardRow = startRow + rowIndex;
+                            const boardCol = startCol + colIndex;
+                            
+                            if (boardRow < 0 || boardRow >= 8 || boardCol < 0 || boardCol >= 8) {
+                                return false;
+                            }
+                        }
+                    }
+                }
+                return true;
+            }
+            
+            hasOverlap(shape, startRow, startCol) {
+                for (let rowIndex = 0; rowIndex < shape.length; rowIndex++) {
+                    for (let colIndex = 0; colIndex < shape[rowIndex].length; colIndex++) {
+                        if (shape[rowIndex][colIndex] === 1) {
+                            const boardRow = startRow + rowIndex;
+                            const boardCol = startCol + colIndex;
+                            
+                            // Check if this cell is within bounds and occupied
+                            if (boardRow >= 0 && boardRow < 8 && boardCol >= 0 && boardCol < 8) {
+                                if (this.board[boardRow][boardCol] !== 0) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                return false;
             }
             
             placePiece(piece, startRow, startCol) {
