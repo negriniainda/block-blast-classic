@@ -957,12 +957,21 @@
                 this.currentPieces = [];
                 this.piecesTray.innerHTML = '';
                 
-                // Update difficulty and available pieces
-                this.updateDifficultyLevel();
-                this.updateAvailablePieces();
+                // Use all pieces regardless of score - completely random selection
+                const allPieces = [...this.basicPieces, ...this.advancedPieces];
                 
-                // Generate pieces using Block Blast algorithm
-                const pieces = this.generateSmartPieces();
+                // Generate 3 completely random pieces
+                const pieces = [];
+                for (let i = 0; i < 3; i++) {
+                    const randomIndex = Math.floor(Math.random() * allPieces.length);
+                    const template = allPieces[randomIndex];
+                    pieces.push({
+                        shape: template.shape,
+                        color: template.color,
+                        name: template.name,
+                        id: this.nextPieceId++
+                    });
+                }
                 
                 pieces.forEach(piece => {
                     this.currentPieces.push(piece);
@@ -1258,15 +1267,35 @@
                 const clientX = e.clientX || e.touches[0].clientX;
                 const clientY = e.clientY || e.touches[0].clientY;
                 
+                // Get board boundaries (moved outside to be accessible for placeholder logic)
+                const boardRect = this.gameBoard.getBoundingClientRect();
+                
                 const draggedElement = document.querySelector('.piece-container.dragging');
                 if (draggedElement) {
-                    draggedElement.style.left = (clientX - this.dragOffset.x) + 'px';
-                    draggedElement.style.top = (clientY - this.dragOffset.y) + 'px';
-                    // Toggle visibility based on pointer position
-                    const boardRect = this.gameBoard.getBoundingClientRect();
+                    
+                    // Calculate desired position
+                    let newLeft = clientX - this.dragOffset.x;
+                    let newTop = clientY - this.dragOffset.y;
+                    
+                    // Constrain horizontal movement (left and right walls)
+                    const minLeft = boardRect.left;
+                    const maxLeft = boardRect.right;
+                    newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
+                    
+                    // Constrain vertical movement (top wall only, allow bottom exit)
+                    const minTop = boardRect.top;
+                    // Remove bottom constraint - pieces can be dragged below the board
+                    newTop = Math.max(minTop, newTop);
+                    
+                    draggedElement.style.left = newLeft + 'px';
+                    draggedElement.style.top = newTop + 'px';
+                    
+                    // Toggle visibility based on constrained position
+                    const constrainedX = newLeft + this.dragOffset.x;
+                    const constrainedY = newTop + this.dragOffset.y;
                     if (
-                        clientX >= boardRect.left && clientX <= boardRect.right &&
-                        clientY >= boardRect.top && clientY <= boardRect.bottom
+                        constrainedX >= boardRect.left && constrainedX <= boardRect.right &&
+                        constrainedY >= boardRect.top && constrainedY <= boardRect.bottom
                     ) {
                         draggedElement.classList.add('invisible-on-board');
                     } else {
@@ -1274,12 +1303,16 @@
                     }
                 }
                 
-                // Highlight valid drop zones
-                // Highlight valid drop zones and control piece visibility
-                const boardRect = this.gameBoard.getBoundingClientRect();
+                // Highlight valid drop zones using original mouse position
                 const cellSize = 42;
-                const adjustedX = clientX;
-                const adjustedY = clientY - 50;
+                // Center the placeholder on the mouse pointer
+                const pieceWidth = this.draggedPiece.shape[0].length;
+                const pieceHeight = this.draggedPiece.shape.length;
+                const centerOffsetX = (pieceWidth - 1) * cellSize / 2;
+                const centerOffsetY = (pieceHeight - 1) * cellSize / 2;
+                
+                const adjustedX = clientX - centerOffsetX;
+                const adjustedY = clientY - centerOffsetY;
                 const col = Math.floor((adjustedX - boardRect.left) / cellSize);
                 const row = Math.floor((adjustedY - boardRect.top) / cellSize);
                 const canShowPlaceholder = this.canPlacePiece(this.draggedPiece.shape, row, col);
@@ -1367,12 +1400,14 @@
                 const boardRect = this.gameBoard.getBoundingClientRect();
                 const cellSize = 42; // 40px + 2px gap
                 
-                // Adjust for centered piece positioning
-                const pieceWidth = this.draggedPiece.shape[0].length * 27; // 25px + 2px gap
-                const pieceHeight = this.draggedPiece.shape.length * 27;
+                // Use the same centering logic as in attemptDrop method
+                const pieceWidth = this.draggedPiece.shape[0].length;
+                const pieceHeight = this.draggedPiece.shape.length;
+                const centerOffsetX = (pieceWidth - 1) * cellSize / 2;
+                const centerOffsetY = (pieceHeight - 1) * cellSize / 2;
                 
-                const adjustedX = clientX;
-                const adjustedY = clientY - 50;
+                const adjustedX = clientX - centerOffsetX;
+                const adjustedY = clientY - centerOffsetY;
                 
                 const col = Math.floor((adjustedX - boardRect.left) / cellSize);
                 const row = Math.floor((adjustedY - boardRect.top) / cellSize);
@@ -1412,12 +1447,14 @@
                 const boardRect = this.gameBoard.getBoundingClientRect();
                 const cellSize = 42;
                 
-                // Adjust for centered piece positioning
-                const pieceWidth = this.draggedPiece.shape[0].length * 27; // 25px + 2px gap
-                const pieceHeight = this.draggedPiece.shape.length * 27;
+                // Use the same centering logic as in drag method
+                const pieceWidth = this.draggedPiece.shape[0].length;
+                const pieceHeight = this.draggedPiece.shape.length;
+                const centerOffsetX = (pieceWidth - 1) * cellSize / 2;
+                const centerOffsetY = (pieceHeight - 1) * cellSize / 2;
                 
-                const adjustedX = clientX;
-                const adjustedY = clientY - 50;
+                const adjustedX = clientX - centerOffsetX;
+                const adjustedY = clientY - centerOffsetY;
                 
                 const col = Math.floor((adjustedX - boardRect.left) / cellSize);
                 const row = Math.floor((adjustedY - boardRect.top) / cellSize);
