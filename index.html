@@ -987,52 +987,95 @@
             }
             
             generatePieces() {
+                const pieces = this.generatePieceSet(this.board, {
+                    score: this.score,
+                    totalPiecesPlaced: this.totalPiecesPlaced,
+                    consecutiveCombos: this.consecutiveCombos,
+                    sessionDuration: (Date.now() - this.sessionStartTime) / 1000
+                });
+                
                 this.currentPieces = [];
                 this.piecesTray.innerHTML = '';
-                
-                const allPieces = [...this.basicPieces, ...this.advancedPieces];
-                const pieces = [];
-                
-                // Analyze board to find helpful pieces (2 helpful + 1 random strategy)
-                const helpfulPieces = this.findHelpfulPieces(allPieces);
-                
-                // Add 2 helpful pieces (or best available if less than 2 found)
-                for (let i = 0; i < Math.min(2, helpfulPieces.length); i++) {
-                    pieces.push({
-                        shape: helpfulPieces[i].shape,
-                        color: helpfulPieces[i].color,
-                        name: helpfulPieces[i].name + '_helpful',
-                        id: this.nextPieceId++
-                    });
-                }
-                
-                // Fill remaining slots with random pieces (ensuring no duplicates)
-                const usedNames = new Set(pieces.map(p => p.name.replace('_helpful', '')));
-                while (pieces.length < 3) {
-                    const randomIndex = Math.floor(Math.random() * allPieces.length);
-                    const template = allPieces[randomIndex];
-                    
-                    if (!usedNames.has(template.name)) {
-                        pieces.push({
-                            shape: template.shape,
-                            color: template.color,
-                            name: template.name + (pieces.length < 2 ? '_helpful' : '_random'),
-                            id: this.nextPieceId++
-                        });
-                        usedNames.add(template.name);
-                    }
-                }
-                
-                // Shuffle the pieces so helpful ones aren't always in the same position
-                for (let i = pieces.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [pieces[i], pieces[j]] = [pieces[j], pieces[i]];
-                }
                 
                 pieces.forEach(piece => {
                     this.currentPieces.push(piece);
                     this.createPieceElement(piece);
                 });
+            }
+            
+            generatePieceSet(boardState, playerStats) {
+                // 1. Determine current difficulty modifiers based on game progress
+                const difficultyLevel = this.calculateDifficulty(playerStats);
+                
+                // 2. Set up weighted probabilities for each piece type
+                const allPieceTypes = this.getAllPieceTypesWithWeights();
+                
+                for (let pieceType of allPieceTypes) {
+                    // Apply difficulty scaling: reduce easy weights, increase hard weights as difficulty rises
+                    pieceType.currentWeight = pieceType.baseWeight * this.getWeightAdjustment(pieceType.category, difficultyLevel);
+                }
+                
+                const chosenPieces = [];
+                const usedTypes = new Set();
+                const MAX_ATTEMPTS = 100;
+                
+                // 3. Loop to pick 3 pieces
+                let attempts = 0;
+                while (chosenPieces.length < 3 && attempts < MAX_ATTEMPTS) {
+                    attempts++;
+                    
+                    // 3a. Select a candidate piece at random according to weights
+                    const candidate = this.weightedRandomChoice(allPieceTypes);
+                    
+                    // 3b. Check constraints for this candidate
+                    if (usedTypes.has(candidate.shapeType)) {
+                        continue; // skip if same shape was already chosen this set (no duplicates)
+                    }
+                    
+                    if (!this.isPlaceable(candidate, boardState)) {
+                        continue; // skip if this piece has no available fit on the board right now
+                    }
+                    
+                    // If passed all checks, we accept this piece
+                    chosenPieces.push({
+                        shape: candidate.shape,
+                        color: candidate.color,
+                        name: candidate.name,
+                        id: this.nextPieceId++
+                    });
+                    usedTypes.add(candidate.shapeType);
+                }
+                
+                // Fallback: if we couldn't generate 3 pieces, fill with basic pieces
+                while (chosenPieces.length < 3) {
+                    const basicPiece = this.basicPieces[Math.floor(Math.random() * this.basicPieces.length)];
+                    if (!usedTypes.has(basicPiece.name)) {
+                        chosenPieces.push({
+                            shape: basicPiece.shape,
+                            color: basicPiece.color,
+                            name: basicPiece.name,
+                            id: this.nextPieceId++
+                        });
+                        usedTypes.add(basicPiece.name);
+                    }
+                }
+                
+                // 4. Optional: Validate full-set solvability (simplified version)
+                if (!this.existsPlacementOrder(chosenPieces, boardState)) {
+                    // Replace the hardest piece with an easier alternative
+                    const pieceToReplace = this.pickHardestPiece(chosenPieces, boardState);
+                    const newPiece = this.findAlternativePiece(boardState, usedTypes);
+                    if (newPiece && pieceToReplace !== -1) {
+                        chosenPieces[pieceToReplace] = {
+                            shape: newPiece.shape,
+                            color: newPiece.color,
+                            name: newPiece.name,
+                            id: this.nextPieceId++
+                        };
+                    }
+                }
+                
+                return chosenPieces;
             }
             
             updateDifficultyLevel() {
@@ -1043,6 +1086,147 @@
                 
                 // Dynamic difficulty based on multiple factors
                 this.difficultyLevel = Math.min(10, scoreWeight * 0.3 + timeWeight * 0.2 + comboWeight * 0.5);
+            }
+            
+            calculateDifficulty(playerStats) {
+                const scoreWeight = playerStats.score / 1000; // Normalize score
+                const timeWeight = playerStats.sessionDuration / 300; // 5 minutes = 1.0
+                const comboWeight = playerStats.consecutiveCombos * 0.5;
+                const piecesWeight = playerStats.totalPiecesPlaced / 50; // 50 pieces = 1.0
+                
+                // Combine factors with different weights
+                const difficulty = Math.min(10, 
+                    scoreWeight * 0.4 + 
+                    timeWeight * 0.2 + 
+                    comboWeight * 0.3 + 
+                    piecesWeight * 0.1
+                );
+                
+                return difficulty;
+            }
+            
+            getAllPieceTypesWithWeights() {
+                const pieceTypes = [];
+                
+                // Basic pieces (easy category)
+                this.basicPieces.forEach(piece => {
+                    const blockCount = piece.shape.flat().filter(cell => cell === 1).length;
+                    pieceTypes.push({
+                        ...piece,
+                        shapeType: piece.name,
+                        category: 'easy',
+                        baseWeight: blockCount <= 3 ? 10 : 8, // Smaller pieces have higher base weight
+                        blockCount: blockCount
+                    });
+                });
+                
+                // Advanced pieces (medium to hard category)
+                this.advancedPieces.forEach(piece => {
+                    const blockCount = piece.shape.flat().filter(cell => cell === 1).length;
+                    let category = 'medium';
+                    let baseWeight = 5;
+                    
+                    if (blockCount >= 6) {
+                        category = 'hard';
+                        baseWeight = 3;
+                    }
+                    if (blockCount >= 9) {
+                        category = 'very_hard';
+                        baseWeight = 1;
+                    }
+                    
+                    pieceTypes.push({
+                        ...piece,
+                        shapeType: piece.name,
+                        category: category,
+                        baseWeight: baseWeight,
+                        blockCount: blockCount
+                    });
+                });
+                
+                return pieceTypes;
+            }
+            
+            getWeightAdjustment(category, difficultyLevel) {
+                const adjustments = {
+                    'easy': Math.max(0.2, 1.0 - (difficultyLevel * 0.08)), // Reduce easy pieces as difficulty increases
+                    'medium': 1.0 + (difficultyLevel * 0.02), // Slightly increase medium pieces
+                    'hard': 1.0 + (difficultyLevel * 0.05), // Increase hard pieces more
+                    'very_hard': Math.max(0.1, difficultyLevel * 0.1) // Very hard pieces only at higher difficulty
+                };
+                
+                return adjustments[category] || 1.0;
+            }
+            
+            weightedRandomChoice(pieceTypes) {
+                const totalWeight = pieceTypes.reduce((sum, piece) => sum + piece.currentWeight, 0);
+                let random = Math.random() * totalWeight;
+                
+                for (let piece of pieceTypes) {
+                    random -= piece.currentWeight;
+                    if (random <= 0) {
+                        return piece;
+                    }
+                }
+                
+                // Fallback: return last piece if rounding errors occur
+                return pieceTypes[pieceTypes.length - 1];
+            }
+            
+            isPlaceable(piece, boardState) {
+                // Check if piece can be placed anywhere on the board
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        if (this.canPlacePiece(piece.shape, row, col)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            
+            existsPlacementOrder(pieces, boardState) {
+                // Simplified solvability check: ensure at least 2 pieces can be placed
+                let placeableCount = 0;
+                for (let piece of pieces) {
+                    if (this.isPlaceable(piece, boardState)) {
+                        placeableCount++;
+                    }
+                }
+                return placeableCount >= 2;
+            }
+            
+            pickHardestPiece(pieces, boardState) {
+                let hardestIndex = -1;
+                let maxBlockCount = 0;
+                
+                pieces.forEach((piece, index) => {
+                    const blockCount = piece.shape.flat().filter(cell => cell === 1).length;
+                    if (blockCount > maxBlockCount) {
+                        maxBlockCount = blockCount;
+                        hardestIndex = index;
+                    }
+                });
+                
+                return hardestIndex;
+            }
+            
+            findAlternativePiece(boardState, usedTypes) {
+                // Find a smaller, easier piece that can be placed
+                const alternatives = this.basicPieces.filter(piece => 
+                    !usedTypes.has(piece.name) && this.isPlaceable(piece, boardState)
+                );
+                
+                if (alternatives.length > 0) {
+                    // Return the smallest alternative
+                    return alternatives.reduce((smallest, current) => {
+                        const smallestBlocks = smallest.shape.flat().filter(cell => cell === 1).length;
+                        const currentBlocks = current.shape.flat().filter(cell => cell === 1).length;
+                        return currentBlocks < smallestBlocks ? current : smallest;
+                    });
+                }
+                
+                return null;
             }
             
             findHelpfulPieces(allPieces) {
