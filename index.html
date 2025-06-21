@@ -74,13 +74,20 @@
         }
 
         .pause-btn {
-            background: #ff6b6b;
+            background: transparent;
             border: none;
-            color: white;
-            padding: 10px 20px;
+            color: #ff6b6b;
+            padding: 10px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 32px;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: none;
+            outline: none;
         }
         
         .button-group {
@@ -89,17 +96,21 @@
         }
         
         #sound-btn {
-            background: #2a9d8f; /* Darker green */
+            background: transparent;
             min-width: 50px;
+            box-shadow: none;
+            outline: none;
         }
         
         #sound-btn.muted {
-            background: #95a5a6;
+            background: transparent;
         }
 
         #reload-btn {
-            background: #3a86ff; /* Blue */
+            background: transparent;
             min-width: 50px;
+            box-shadow: none;
+            outline: none;
         }
 
         .game-board-container {
@@ -539,8 +550,10 @@
             }
             
             .pause-btn {
-                padding: 8px 15px;
-                font-size: 14px;
+                padding: 8px;
+                font-size: 28px;
+                width: 38px;
+                height: 38px;
             }
             
             .game-board {
@@ -598,8 +611,10 @@
             }
             
             .pause-btn {
-                padding: 6px 12px;
-                font-size: 12px;
+                padding: 6px;
+                font-size: 24px;
+                width: 32px;
+                height: 32px;
             }
             
             .game-board {
@@ -642,7 +657,7 @@
                 <div class="high-score">High Score: <span id="high-score">0</span></div>
             </div>
             <div class="button-group">
-                <button class="pause-btn" id="pause-btn">Pause</button>
+                <button class="pause-btn" id="pause-btn">⏸️</button>
                 <button class="pause-btn" id="sound-btn">🔊</button>
                 <button class="pause-btn" id="haptic-btn">📳</button>
                 <button class="pause-btn" id="reload-btn">🔄</button>
@@ -927,7 +942,7 @@
                 
                 // Update UI
                 this.updateScoreDisplay();
-                this.pauseBtn.textContent = 'Pause';
+                this.pauseBtn.textContent = '⏸️';
                 
                 // Recreate board and generate new pieces
                 this.createBoard();
@@ -1277,15 +1292,20 @@
                     let newLeft = clientX - this.dragOffset.x;
                     let newTop = clientY - this.dragOffset.y;
                     
-                    // Constrain horizontal movement (left and right walls)
-                    const minLeft = boardRect.left;
-                    const maxLeft = boardRect.right;
+                    // Get piece dimensions for proper boundary calculation
+                    const cellSize = 42;
+                    const pieceWidth = this.draggedPiece.shape[0].length * cellSize;
+                    const pieceHeight = this.draggedPiece.shape.length * cellSize;
+                    
+                    // Constrain horizontal movement (ensure entire piece stays within board)
+                    const minLeft = boardRect.left - this.dragOffset.x;
+                    const maxLeft = boardRect.right - pieceWidth + this.dragOffset.x;
                     newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
                     
-                    // Constrain vertical movement (top wall only, allow bottom exit)
-                    const minTop = boardRect.top;
-                    // Remove bottom constraint - pieces can be dragged below the board
-                    newTop = Math.max(minTop, newTop);
+                    // Constrain vertical movement (ensure entire piece stays within board)
+                    const minTop = boardRect.top - this.dragOffset.y;
+                    const maxTop = boardRect.bottom - pieceHeight + this.dragOffset.y;
+                    newTop = Math.max(minTop, Math.min(maxTop, newTop));
                     
                     draggedElement.style.left = newLeft + 'px';
                     draggedElement.style.top = newTop + 'px';
@@ -1649,33 +1669,33 @@
                     if (linesCleared === 1) {
                         multiLineBonus = 0; // Just base score
                     } else if (linesCleared === 2) {
-                        multiLineBonus = 10; // 30 total instead of 20
+                        multiLineBonus = 20; // 40 total instead of 20
                     } else if (linesCleared === 3) {
-                        multiLineBonus = 30; // 60 total instead of 30
+                        multiLineBonus = 60; // 90 total instead of 30
                     } else if (linesCleared === 4) {
-                        multiLineBonus = 60; // 100 total instead of 40
+                        multiLineBonus = 120; // 160 total instead of 40
                     } else if (linesCleared >= 5) {
-                        multiLineBonus = 100 + (linesCleared - 5) * 50; // Massive bonus for 5+ lines
+                        multiLineBonus = 200 + (linesCleared - 5) * 100; // Massive bonus for 5+ lines
                     }
                     
                     // Combo chain multiplier (consecutive clears)
                     let comboMultiplier = 1;
                     if (this.consecutiveCombos > 1) {
-                        comboMultiplier = 1 + (this.consecutiveCombos - 1) * 0.5; // 1.5x, 2x, 2.5x, etc.
+                        comboMultiplier = 1 + (this.consecutiveCombos - 1) * 1.0; // 2x, 3x, 4x, etc.
                     }
                     
                     totalScore = (baseScore + multiLineBonus) * comboMultiplier;
                     
                     // Additional combo bonus points (flat bonus on top of multiplier)
                     if (this.consecutiveCombos > 1) {
-                        const comboBonus = this.consecutiveCombos * 5; // 5 points per combo level
+                        const comboBonus = this.consecutiveCombos * 10; // 10 points per combo level
                         totalScore += comboBonus;
                     }
                     
                     // All Clear bonus (special reward for clearing entire board)
                     let allClearBonus = 0;
                     if (isAllClear) {
-                        allClearBonus = Math.max(500, this.score * 0.1); // Minimum 500 points or 10% of current score
+                        allClearBonus = Math.max(1000, this.score * 0.2); // Minimum 1000 points or 20% of current score
                         totalScore += allClearBonus;
                     }
                     
@@ -2063,8 +2083,8 @@
             }
             
             togglePause() {
-                this.isPaused = !this.isPaused;
-                this.pauseBtn.textContent = this.isPaused ? 'Resume' : 'Pause';
+            this.isPaused = !this.isPaused;
+            this.pauseBtn.textContent = this.isPaused ? '▶️' : '⏸️';
                 
                 if (this.isPaused) {
                     document.querySelectorAll('.piece-container').forEach(container => {
