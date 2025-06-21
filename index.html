@@ -774,7 +774,7 @@
                     { shape: [[1], [1], [1], [1], [1]], color: '#ff9f43', name: 'extra-long-line-v' }, // 5-block vertical
                     { shape: [[1, 1, 1], [1, 0, 0], [1, 0, 0]], color: '#e17055', name: 'big-L' }, // 5-block L-shape
                     { shape: [[1, 1, 1], [0, 0, 1], [0, 0, 1]], color: '#a29bfe', name: 'big-reverse-L' }, // 5-block reverse L
-                    { shape: [[0, 1, 0], [1, 1, 1], [0, 1, 0]], color: '#fd79a8', name: 'plus-shape' }, // Plus shape
+                    // Plus shape removed per user request
                     
                     // 6-block rectangles
                     { shape: [[1, 1, 1], [1, 1, 1]], color: '#fdcb6e', name: 'rectangle-3x2' }, // 3x2 rectangle
@@ -990,20 +990,43 @@
                 this.currentPieces = [];
                 this.piecesTray.innerHTML = '';
                 
-                // Use all pieces regardless of score - completely random selection
                 const allPieces = [...this.basicPieces, ...this.advancedPieces];
-                
-                // Generate 3 completely random pieces
                 const pieces = [];
-                for (let i = 0; i < 3; i++) {
-                    const randomIndex = Math.floor(Math.random() * allPieces.length);
-                    const template = allPieces[randomIndex];
+                
+                // Analyze board to find helpful pieces (2 helpful + 1 random strategy)
+                const helpfulPieces = this.findHelpfulPieces(allPieces);
+                
+                // Add 2 helpful pieces (or best available if less than 2 found)
+                for (let i = 0; i < Math.min(2, helpfulPieces.length); i++) {
                     pieces.push({
-                        shape: template.shape,
-                        color: template.color,
-                        name: template.name,
+                        shape: helpfulPieces[i].shape,
+                        color: helpfulPieces[i].color,
+                        name: helpfulPieces[i].name + '_helpful',
                         id: this.nextPieceId++
                     });
+                }
+                
+                // Fill remaining slots with random pieces (ensuring no duplicates)
+                const usedNames = new Set(pieces.map(p => p.name.replace('_helpful', '')));
+                while (pieces.length < 3) {
+                    const randomIndex = Math.floor(Math.random() * allPieces.length);
+                    const template = allPieces[randomIndex];
+                    
+                    if (!usedNames.has(template.name)) {
+                        pieces.push({
+                            shape: template.shape,
+                            color: template.color,
+                            name: template.name + (pieces.length < 2 ? '_helpful' : '_random'),
+                            id: this.nextPieceId++
+                        });
+                        usedNames.add(template.name);
+                    }
+                }
+                
+                // Shuffle the pieces so helpful ones aren't always in the same position
+                for (let i = pieces.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [pieces[i], pieces[j]] = [pieces[j], pieces[i]];
                 }
                 
                 pieces.forEach(piece => {
@@ -1020,6 +1043,154 @@
                 
                 // Dynamic difficulty based on multiple factors
                 this.difficultyLevel = Math.min(10, scoreWeight * 0.3 + timeWeight * 0.2 + comboWeight * 0.5);
+            }
+            
+            findHelpfulPieces(allPieces) {
+                const helpfulPieces = [];
+                const boardAnalysis = this.analyzeBoardState();
+                
+                // Score each piece based on how helpful it would be
+                const scoredPieces = allPieces.map(piece => {
+                    const helpfulness = this.calculatePieceHelpfulness(piece, boardAnalysis);
+                    return { ...piece, helpfulness };
+                });
+                
+                // Sort by helpfulness (descending) and return top pieces
+                scoredPieces.sort((a, b) => b.helpfulness - a.helpfulness);
+                
+                // Return pieces that have above-average helpfulness
+                const averageHelpfulness = scoredPieces.reduce((sum, p) => sum + p.helpfulness, 0) / scoredPieces.length;
+                return scoredPieces.filter(p => p.helpfulness > averageHelpfulness).slice(0, 5);
+            }
+            
+            analyzeBoardState() {
+                const analysis = {
+                    nearCompleteRows: [],
+                    nearCompleteCols: [],
+                    gapPatterns: [],
+                    emptySpaces: 0
+                };
+                
+                // Analyze rows for near-completion (6-7 filled cells)
+                for (let row = 0; row < 8; row++) {
+                    const filledCount = this.board[row].filter(cell => cell !== 0).length;
+                    if (filledCount >= 6) {
+                        const emptyPositions = [];
+                        for (let col = 0; col < 8; col++) {
+                            if (this.board[row][col] === 0) {
+                                emptyPositions.push(col);
+                            }
+                        }
+                        analysis.nearCompleteRows.push({ row, filledCount, emptyPositions });
+                    }
+                }
+                
+                // Analyze columns for near-completion
+                for (let col = 0; col < 8; col++) {
+                    const filledCount = this.board.filter(row => row[col] !== 0).length;
+                    if (filledCount >= 6) {
+                        const emptyPositions = [];
+                        for (let row = 0; row < 8; row++) {
+                            if (this.board[row][col] === 0) {
+                                emptyPositions.push(row);
+                            }
+                        }
+                        analysis.nearCompleteCols.push({ col, filledCount, emptyPositions });
+                    }
+                }
+                
+                // Count total empty spaces
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        if (this.board[row][col] === 0) {
+                            analysis.emptySpaces++;
+                        }
+                    }
+                }
+                
+                return analysis;
+            }
+            
+            calculatePieceHelpfulness(piece, boardAnalysis) {
+                let helpfulness = 0;
+                
+                // Test placing the piece at every possible position
+                for (let startRow = 0; startRow < 8; startRow++) {
+                    for (let startCol = 0; startCol < 8; startCol++) {
+                        if (this.canPlacePiece(piece.shape, startRow, startCol)) {
+                            const placementScore = this.scorePlacement(piece.shape, startRow, startCol, boardAnalysis);
+                            helpfulness = Math.max(helpfulness, placementScore);
+                        }
+                    }
+                }
+                
+                return helpfulness;
+            }
+            
+            scorePlacement(shape, startRow, startCol, boardAnalysis) {
+                let score = 0;
+                const affectedRows = new Set();
+                const affectedCols = new Set();
+                
+                // Simulate placing the piece and check what lines it would complete
+                const tempBoard = this.board.map(row => [...row]);
+                
+                // Place piece on temp board
+                for (let rowIndex = 0; rowIndex < shape.length; rowIndex++) {
+                    for (let colIndex = 0; colIndex < shape[rowIndex].length; colIndex++) {
+                        if (shape[rowIndex][colIndex] === 1) {
+                            const boardRow = startRow + rowIndex;
+                            const boardCol = startCol + colIndex;
+                            tempBoard[boardRow][boardCol] = 1;
+                            affectedRows.add(boardRow);
+                            affectedCols.add(boardCol);
+                        }
+                    }
+                }
+                
+                // Check for completed lines
+                let completedLines = 0;
+                
+                // Check affected rows
+                affectedRows.forEach(row => {
+                    if (tempBoard[row].every(cell => cell !== 0)) {
+                        completedLines++;
+                        score += 100; // High score for completing a line
+                    }
+                });
+                
+                // Check affected columns
+                affectedCols.forEach(col => {
+                    if (tempBoard.every(row => row[col] !== 0)) {
+                        completedLines++;
+                        score += 100; // High score for completing a line
+                    }
+                });
+                
+                // Bonus for multiple line clears
+                if (completedLines > 1) {
+                    score += completedLines * 50; // Exponential bonus
+                }
+                
+                // Score for contributing to near-complete lines
+                affectedRows.forEach(row => {
+                    const nearComplete = boardAnalysis.nearCompleteRows.find(r => r.row === row);
+                    if (nearComplete) {
+                        score += (nearComplete.filledCount - 5) * 20; // More points for closer-to-complete lines
+                    }
+                });
+                
+                affectedCols.forEach(col => {
+                    const nearComplete = boardAnalysis.nearCompleteCols.find(c => c.col === col);
+                    if (nearComplete) {
+                        score += (nearComplete.filledCount - 5) * 20;
+                    }
+                });
+                
+                // Small bonus for efficient space usage (filling gaps)
+                score += shape.flat().filter(cell => cell === 1).length * 2;
+                
+                return score;
             }
             
             generateSmartPieces() {
@@ -1208,15 +1379,15 @@
                 }
                 
                 if (this.score >= 2000) {
-                    // Add 5-block L-shapes and plus shape
+                    // Add 5-block L-shapes
                     availablePieces.push(this.advancedPieces[4]); // 5-block L-shape
                     availablePieces.push(this.advancedPieces[5]); // 5-block reverse L
-                    availablePieces.push(this.advancedPieces[6]); // Plus shape
+                    // Plus shape removed per user request
                 }
                 
                 if (this.score >= 3000) {
                     // Add 9-block square (ultimate challenge)
-                    availablePieces.push(this.advancedPieces[9]); // 3x3 square
+                    availablePieces.push(this.advancedPieces[8]); // 3x3 square
                 }
                 
                 this.pieceShapes = availablePieces;
@@ -1343,11 +1514,27 @@
                 
                 // Highlight valid drop zones using original mouse position
                 const cellSize = 42;
-                // Center the placeholder on the mouse pointer
-                const pieceWidth = this.draggedPiece.shape[0].length;
-                const pieceHeight = this.draggedPiece.shape.length;
-                const centerOffsetX = (pieceWidth - 1) * cellSize / 2;
-                const centerOffsetY = (pieceHeight - 1) * cellSize / 2;
+                // Calculate the visual center of the piece based on actual block positions
+                const shape = this.draggedPiece.shape;
+                let minRow = shape.length, maxRow = -1, minCol = shape[0].length, maxCol = -1;
+                
+                // Find the bounding box of actual blocks (1s) in the shape
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[r].length; c++) {
+                        if (shape[r][c] === 1) {
+                            minRow = Math.min(minRow, r);
+                            maxRow = Math.max(maxRow, r);
+                            minCol = Math.min(minCol, c);
+                            maxCol = Math.max(maxCol, c);
+                        }
+                    }
+                }
+                
+                // Calculate center offset based on the actual block positions
+                const blockCenterX = (minCol + maxCol) / 2;
+                const blockCenterY = (minRow + maxRow) / 2;
+                const centerOffsetX = blockCenterX * cellSize;
+                const centerOffsetY = blockCenterY * cellSize;
                 
                 const adjustedX = clientX - centerOffsetX;
                 const adjustedY = clientY - centerOffsetY;
@@ -1438,11 +1625,27 @@
                 const boardRect = this.gameBoard.getBoundingClientRect();
                 const cellSize = 42; // 40px + 2px gap
                 
-                // Use the same centering logic as in attemptDrop method
-                const pieceWidth = this.draggedPiece.shape[0].length;
-                const pieceHeight = this.draggedPiece.shape.length;
-                const centerOffsetX = (pieceWidth - 1) * cellSize / 2;
-                const centerOffsetY = (pieceHeight - 1) * cellSize / 2;
+                // Calculate the visual center of the piece based on actual block positions
+                const shape = this.draggedPiece.shape;
+                let minRow = shape.length, maxRow = -1, minCol = shape[0].length, maxCol = -1;
+                
+                // Find the bounding box of actual blocks (1s) in the shape
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[r].length; c++) {
+                        if (shape[r][c] === 1) {
+                            minRow = Math.min(minRow, r);
+                            maxRow = Math.max(maxRow, r);
+                            minCol = Math.min(minCol, c);
+                            maxCol = Math.max(maxCol, c);
+                        }
+                    }
+                }
+                
+                // Calculate center offset based on the actual block positions
+                const blockCenterX = (minCol + maxCol) / 2;
+                const blockCenterY = (minRow + maxRow) / 2;
+                const centerOffsetX = blockCenterX * cellSize;
+                const centerOffsetY = blockCenterY * cellSize;
                 
                 const adjustedX = clientX - centerOffsetX;
                 const adjustedY = clientY - centerOffsetY;
@@ -1533,11 +1736,27 @@
                 const boardRect = this.gameBoard.getBoundingClientRect();
                 const cellSize = 42;
                 
-                // Use the same centering logic as in drag method
-                const pieceWidth = this.draggedPiece.shape[0].length;
-                const pieceHeight = this.draggedPiece.shape.length;
-                const centerOffsetX = (pieceWidth - 1) * cellSize / 2;
-                const centerOffsetY = (pieceHeight - 1) * cellSize / 2;
+                // Calculate the visual center of the piece based on actual block positions
+                const shape = this.draggedPiece.shape;
+                let minRow = shape.length, maxRow = -1, minCol = shape[0].length, maxCol = -1;
+                
+                // Find the bounding box of actual blocks (1s) in the shape
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[r].length; c++) {
+                        if (shape[r][c] === 1) {
+                            minRow = Math.min(minRow, r);
+                            maxRow = Math.max(maxRow, r);
+                            minCol = Math.min(minCol, c);
+                            maxCol = Math.max(maxCol, c);
+                        }
+                    }
+                }
+                
+                // Calculate center offset based on the actual block positions
+                const blockCenterX = (minCol + maxCol) / 2;
+                const blockCenterY = (minRow + maxRow) / 2;
+                const centerOffsetX = blockCenterX * cellSize;
+                const centerOffsetY = blockCenterY * cellSize;
                 
                 const adjustedX = clientX - centerOffsetX;
                 const adjustedY = clientY - centerOffsetY;
