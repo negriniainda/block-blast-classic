@@ -644,6 +644,7 @@
             <div class="button-group">
                 <button class="pause-btn" id="pause-btn">Pause</button>
                 <button class="pause-btn" id="sound-btn">🔊</button>
+                <button class="pause-btn" id="haptic-btn">📳</button>
                 <button class="pause-btn" id="reload-btn">🔄</button>
             </div>
         </div>
@@ -683,6 +684,7 @@
                 this.highScoreElement = document.getElementById('high-score');
                 this.pauseBtn = document.getElementById('pause-btn');
                 this.soundBtn = document.getElementById('sound-btn');
+                this.hapticBtn = document.getElementById('haptic-btn');
                 this.restartBtn = document.getElementById('reload-btn');
                 this.isPaused = false;
                 this.draggedPiece = null;
@@ -695,6 +697,10 @@
                 // Sound settings
                 this.soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
                 this.initializeSounds();
+                
+                // Haptic settings
+                this.hapticEnabled = localStorage.getItem('hapticEnabled') !== 'false';
+                this.updateHapticButton();
                 
                 // Block Blast algorithm tracking
                 this.sessionStartTime = Date.now();
@@ -876,6 +882,34 @@
                 localStorage.setItem('soundEnabled', this.soundEnabled);
                 this.updateSoundButton();
                 return this.soundEnabled;
+            }
+            
+            updateHapticButton() {
+                if (this.hapticBtn) {
+                    this.hapticBtn.textContent = this.hapticEnabled ? '📳' : '📴';
+                    this.hapticBtn.classList.toggle('muted', !this.hapticEnabled);
+                }
+            }
+            
+            playHaptic(type) {
+                if (!('vibrate' in navigator) || !this.hapticEnabled) return;
+                
+                const patterns = {
+                    'place': 50,           // Short pulse for piece placement
+                    'clear': [100, 50, 100], // Double pulse for line clear
+                    'combo': [50, 30, 50, 30, 100], // Complex pattern for combos
+                    'allClear': [200, 100, 200, 100, 300], // Celebration pattern
+                    'gameOver': [500]      // Long pulse for game over
+                };
+                
+                navigator.vibrate(patterns[type] || 50);
+            }
+            
+            toggleHaptic() {
+                this.hapticEnabled = !this.hapticEnabled;
+                localStorage.setItem('hapticEnabled', this.hapticEnabled);
+                this.updateHapticButton();
+                return this.hapticEnabled;
             }
             
             restartGame() {
@@ -1176,6 +1210,7 @@
             setupEventListeners() {
                 this.pauseBtn.addEventListener('click', () => this.togglePause());
                 this.soundBtn.addEventListener('click', () => this.toggleSound());
+                this.hapticBtn.addEventListener('click', () => this.toggleHaptic());
                 this.restartBtn.addEventListener('click', () => this.restartGame());
                 
                 // Mouse events for drag and drop
@@ -1438,6 +1473,9 @@
                     // Play place sound effect
                     this.playSound('place');
                     
+                    // Play haptic feedback
+                    this.playHaptic('place');
+                    
                     // Update algorithm tracking
                     this.totalPiecesPlaced++;
 
@@ -1496,6 +1534,9 @@
             clearCompletedLines(rows, cols) {
                 // Play clear sound effect
                 this.playSound('clear');
+                
+                // Play haptic feedback
+                this.playHaptic('clear');
                 
                 // Collect colors for visual effects before clearing
                 const lineColors = new Set();
@@ -1634,6 +1675,9 @@
             showComboIndicator(comboCount) {
                 // Play combo sound effect
                 this.playSound('combo');
+                
+                // Play haptic feedback
+                this.playHaptic('combo');
                 
                 const indicator = document.createElement('div');
                 indicator.className = 'combo-indicator';
@@ -1857,6 +1901,9 @@
                 // Play all-clear sound effect
                 this.playSound('allClear');
                 
+                // Play haptic feedback
+                this.playHaptic('allClear');
+                
                 // Create spectacular All Clear celebration
                 const allClearText = document.createElement('div');
                 allClearText.className = 'all-clear-text';
@@ -1961,6 +2008,9 @@
             gameOver() {
                 // Play game over sound effect
                 this.playSound('gameOver');
+                
+                // Play haptic feedback
+                this.playHaptic('gameOver');
                 
                 const modal = document.createElement('div');
                 modal.className = 'game-over-modal';
