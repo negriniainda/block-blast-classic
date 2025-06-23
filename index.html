@@ -1651,7 +1651,7 @@
                 // Center the piece on the cursor using board cell size for better alignment
                 const cellSize = 42; // 40px + 2px gap
                 this.dragOffset.x = (this.draggedPiece.shape[0].length * cellSize) / 8;
-                this.dragOffset.y = (this.draggedPiece.shape.length * cellSize) / 8 + 12.5;
+                this.dragOffset.y = 100; // Position piece 100 pixels above mouse pointer
                 
                 pieceContainer.classList.add('dragging');
                 
