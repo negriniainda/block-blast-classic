@@ -180,7 +180,7 @@
         .pieces-tray {
             display: flex;
             justify-content: center;
-            gap: 30px;
+            gap: 15px;
             padding: 20px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 10px;
@@ -219,9 +219,21 @@
             position: fixed;
             pointer-events: none;
         }
-        .piece-container.dragging.invisible-on-board {
-            opacity: 0;
+        
+        .piece-container.dragging {
+            gap: 2px;
         }
+        
+        .piece-container.dragging .piece-block {
+            width: 40px;
+            height: 40px;
+        }
+        
+        .piece-container.dragging .piece-block-empty {
+            width: 40px;
+            height: 40px;
+        }
+
 
         .piece-block {
             width: 25px;
@@ -589,7 +601,7 @@
             .pieces-tray {
                   padding: 15px 10px;
                   margin-top: 10px;
-                  gap: 20px;
+                  gap: 12px;
                   /* Ensure tray stays above mobile toolbar */
                   margin-bottom: max(15px, env(safe-area-inset-bottom)); /* Added margin for toolbar */
               }
@@ -648,7 +660,7 @@
             
             .pieces-tray {
                    padding: 10px 5px;
-                   gap: 15px;
+                   gap: 8px;
                    margin-top: 10px;
                }
             
@@ -1638,11 +1650,17 @@
                 
                 // Center the piece on the cursor using board cell size for better alignment
                 const cellSize = 42; // 40px + 2px gap
-                this.dragOffset.x = (this.draggedPiece.shape[0].length * cellSize) / 2;
-                this.dragOffset.y = (this.draggedPiece.shape.length * cellSize) / 2 + 50;
+                this.dragOffset.x = (this.draggedPiece.shape[0].length * cellSize) / 8;
+                this.dragOffset.y = (this.draggedPiece.shape.length * cellSize) / 8 + 12.5;
                 
                 pieceContainer.classList.add('dragging');
-                pieceContainer.classList.remove('invisible-on-board');
+                
+                // Update grid template to match larger block size
+                const rows = this.draggedPiece.shape.length;
+                const cols = this.draggedPiece.shape[0].length;
+                pieceContainer.style.gridTemplateColumns = `repeat(${cols}, 40px)`;
+                pieceContainer.style.gridTemplateRows = `repeat(${rows}, 40px)`;
+
                 pieceContainer.style.left = (clientX - this.dragOffset.x) + 'px';
                 pieceContainer.style.top = (clientY - this.dragOffset.y) + 'px';
             }
@@ -1665,35 +1683,10 @@
                     let newLeft = clientX - this.dragOffset.x;
                     let newTop = clientY - this.dragOffset.y;
                     
-                    // Get piece dimensions for proper boundary calculation
-                    const cellSize = 42;
-                    const pieceWidth = this.draggedPiece.shape[0].length * cellSize;
-                    const pieceHeight = this.draggedPiece.shape.length * cellSize;
-                    
-                    // Constrain horizontal movement (ensure entire piece stays within board)
-                    const minLeft = boardRect.left - this.dragOffset.x;
-                    const maxLeft = boardRect.right - pieceWidth + this.dragOffset.x;
-                    newLeft = Math.max(minLeft, Math.min(maxLeft, newLeft));
-                    
-                    // Constrain vertical movement (ensure entire piece stays within board)
-                    const minTop = boardRect.top - this.dragOffset.y;
-                    const maxTop = boardRect.bottom - pieceHeight + this.dragOffset.y;
-                    newTop = Math.max(minTop, Math.min(maxTop, newTop));
-                    
                     draggedElement.style.left = newLeft + 'px';
                     draggedElement.style.top = newTop + 'px';
                     
-                    // Toggle visibility based on constrained position
-                    const constrainedX = newLeft + this.dragOffset.x;
-                    const constrainedY = newTop + this.dragOffset.y;
-                    if (
-                        constrainedX >= boardRect.left && constrainedX <= boardRect.right &&
-                        constrainedY >= boardRect.top && constrainedY <= boardRect.bottom
-                    ) {
-                        draggedElement.classList.add('invisible-on-board');
-                    } else {
-                        draggedElement.classList.remove('invisible-on-board');
-                    }
+
                 }
                 
                 // Highlight valid drop zones using original mouse position
@@ -1726,14 +1719,7 @@
                 const row = Math.floor((adjustedY - boardRect.top) / cellSize);
                 const canShowPlaceholder = this.canPlacePiece(this.draggedPiece.shape, row, col);
                 this.highlightDropZones(clientX, clientY);
-                // Toggle visibility based on placeholder
-                if (draggedElement) {
-                    if (canShowPlaceholder) {
-                        draggedElement.classList.add('invisible-on-board');
-                    } else {
-                        draggedElement.classList.remove('invisible-on-board');
-                    }
-                }
+
             }
             
             endDrag(e) {
@@ -1744,6 +1730,7 @@
                 
                 const dropResult = this.attemptDrop(clientX, clientY);
                 
+                const pieceToPlace = this.draggedPiece;
                 const draggedElement = document.querySelector('.piece-container.dragging');
                 if (draggedElement) {
                     draggedElement.classList.remove('dragging');
@@ -1751,13 +1738,20 @@
                     draggedElement.style.left = '';
                     draggedElement.style.top = '';
                     
+                    // Reset grid template to original size
+                    if (pieceToPlace) {
+                        const rows = pieceToPlace.shape.length;
+                        const cols = pieceToPlace.shape[0].length;
+                        draggedElement.style.gridTemplateColumns = `repeat(${cols}, 25px)`;
+                        draggedElement.style.gridTemplateRows = `repeat(${rows}, 25px)`;
+                    }
+                    
                     if (dropResult.success) {
                         draggedElement.remove();
                     }
                 }
                 
                 this.clearHighlights();
-                const pieceToPlace = this.draggedPiece;
                 this.draggedPiece = null;
                 
                 if (dropResult.success && pieceToPlace) {
