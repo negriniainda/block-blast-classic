@@ -1842,9 +1842,23 @@
                 
                 // If dragging outside board or piece would go outside, show red immediately
                 if (isOutsideBoard || !this.isPieceWithinBounds(this.draggedPiece.shape, row, col)) {
-                    // Clamp position to board for visual feedback
-                    const clampedRow = Math.max(0, Math.min(7, row));
-                    const clampedCol = Math.max(0, Math.min(7, col));
+                    // Calculate piece dimensions for proper clamping
+                    const shape = this.draggedPiece.shape;
+                    let maxRowOffset = 0, maxColOffset = 0;
+                    
+                    // Find the maximum row and column offsets of actual blocks
+                    for (let r = 0; r < shape.length; r++) {
+                        for (let c = 0; c < shape[r].length; c++) {
+                            if (shape[r][c] === 1) {
+                                maxRowOffset = Math.max(maxRowOffset, r);
+                                maxColOffset = Math.max(maxColOffset, c);
+                            }
+                        }
+                    }
+                    
+                    // Clamp position to board considering piece dimensions
+                    const clampedRow = Math.max(0, Math.min(7 - maxRowOffset, row));
+                    const clampedCol = Math.max(0, Math.min(7 - maxColOffset, col));
                     this.highlightCells(this.draggedPiece.shape, clampedRow, clampedCol, 'invalid-drop');
                     return;
                 }
